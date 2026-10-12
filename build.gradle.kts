@@ -33,7 +33,5 @@ tasks.test {
 }
 
 tasks.named<Zip>("buildPlugin") {
-    from("LICENSE") {
-        into(rootProject.name)
-    }
+    from("LICENSE")
 }
