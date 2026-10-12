@@ -1,0 +1,36 @@
+<idea-plugin>
+    <id>com.spc.goland.commit-message</id>
+    <name>提交说明生成</name>
+    <vendor email="mingw2385@gmail.com">spc</vendor>
+    <description><![CDATA[
+        <p>在提交说明工具栏点击按钮，根据当前变更和设置中的全局提示词生成提交说明。不会自动填写。</p>
+        <p>生成时调用本机已安装的 Codex。模型在 Settings、Version Control、提交说明生成 中选择。</p>
+        <p>插件本身不上传代码。提示词和变更文件列表会交给本机 Codex，再由 Codex 按它自己的配置访问模型服务。</p>
+    ]]></description>
+    <change-notes><![CDATA[
+        <p>0.1.0</p>
+        <ul>
+            <li>在提交工具栏添加生成按钮。</li>
+            <li>可在设置中选择本地 Codex 模型，并自定义全局提示词。</li>
+        </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+            parentId="vcs"
+            instance="com.spc.goland.commitmessage.CommitMessageConfigurable"
+            id="com.spc.goland.commitmessage"
+            displayName="提交说明生成"/>
+    </extensions>
+
+    <actions>
+        <action id="Codex.Commit.Generate"
+                class="com.spc.goland.commitmessage.GenerateCommitMessageAction"
+                icon="icons/generate.svg">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
+        </action>
+    </actions>
+</idea-plugin>
