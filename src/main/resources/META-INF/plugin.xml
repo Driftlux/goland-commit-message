@@ -1,12 +1,11 @@
 <idea-plugin>
-    <id>com.spc.goland.commit-message</id>
-    <name>提交说明生成</name>
+    <id>com.spc.commit-message</id>
+    <name>Commit Message Generator</name>
     <vendor email="mingw2385@gmail.com">spc</vendor>
-    <description><![CDATA[
-        <p>在提交说明工具栏点击按钮，根据当前变更和设置中的全局提示词生成提交说明。不会自动填写。</p>
-        <p>生成时调用本机已安装的 Codex。模型在 Settings、Version Control、提交说明生成 中选择。</p>
-        <p>插件本身不上传代码。提示词和变更文件列表会交给本机 Codex，再由 Codex 按它自己的配置访问模型服务。</p>
-    ]]></description>
+    <description><![CDATA[Generate a commit message from the current changes and your saved prompt. Click the toolbar button to generate it. The message is not filled in automatically.<br>
+在提交说明工具栏点击按钮，根据当前变更和设置中的全局提示词生成提交说明。不会自动填写。<br>
+生成时调用本机已安装的 Codex。模型在 Settings、Version Control、提交说明生成 中选择。<br>
+插件本身不上传代码。提示词和变更文件列表会交给本机 Codex，再由 Codex 按它自己的配置访问模型服务。]]></description>
     <change-notes><![CDATA[
         <p>0.1.0</p>
         <ul>

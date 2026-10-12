@@ -31,3 +31,9 @@ intellijPlatform {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.named<Zip>("buildPlugin") {
+    from("LICENSE") {
+        into(rootProject.name)
+    }
+}

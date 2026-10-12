@@ -1,5 +1,7 @@
 # 提交说明生成
 
+Copyright 2026 spc. Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+
 在 GoLand 提交说明工具栏点击生成按钮，根据当前变更和全局提示词生成提交说明。
 
 模型和提示词都在 Settings、Version Control、提交说明生成 中配置。
