@@ -1,6 +1,6 @@
 <idea-plugin>
     <id>com.spc.commit-message</id>
-    <name>Commit Message Generator</name>
+    <name>Local Codex Commit Notes</name>
     <vendor email="mingw2385@gmail.com">spc</vendor>
     <description><![CDATA[Generate a commit message from the current changes and your saved prompt. Click the toolbar button to generate it. The message is not filled in automatically.<br>
 在提交说明工具栏点击按钮，根据当前变更和设置中的全局提示词生成提交说明。不会自动填写。<br>
