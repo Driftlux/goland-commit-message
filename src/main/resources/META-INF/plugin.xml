@@ -2,20 +2,26 @@
     <id>com.spc.commit-message</id>
     <name>Local Codex Commit Notes</name>
     <vendor email="mingw2385@gmail.com">spc</vendor>
-    <description><![CDATA[Generate a commit message from the current changes and your saved prompt. Click the toolbar button to generate it. The message is not filled in automatically.<br>
-在提交说明工具栏点击按钮，根据当前变更和设置中的全局提示词生成提交说明。不会自动填写。<br>
-生成时调用本机已安装的 Codex。模型在 Settings、Version Control、提交说明生成 中选择。<br>
-插件本身不上传代码。提示词和变更文件列表会交给本机 Codex，再由 Codex 按它自己的配置访问模型服务。]]></description>
+    <description><![CDATA[Generate a commit message from the selected changes and your saved prompt. Click the toolbar button to generate and fill the message; generation never starts automatically.<br>
+在提交说明工具栏点击按钮，根据勾选的变更和设置中的全局提示词生成提交说明，完成后填入提交框。不会自动触发生成或执行提交。<br>
+生成时调用本机已安装的 Codex CLI。可配置可执行文件路径、选择或输入模型，模型留空时沿用 Codex 配置。<br>
+插件本身不直接请求模型服务、没有埋点。提示词和变更文件列表会交给本机 Codex，由 Codex 读取实际 diff 并按配置访问模型服务。<br>
+本机 CLI 不等于本地模型推理：变更内容可能发送到云端，模型调用可能产生费用。只读沙箱和 ephemeral 不代表代码绝不出网，也不是模型服务的数据保留承诺。<br>
+文件列表不构成读取隔离。暂不支持部分行、部分变更或暂存区提交。<br>
+问题反馈：<a href="https://github.com/Driftlux/goland-commit-message/issues">GitHub Issues</a>。请勿附带私有代码、密钥或完整运行日志。]]></description>
     <change-notes><![CDATA[
-        <p>0.1.0</p>
+        <p>0.1.1</p>
         <ul>
-            <li>在提交工具栏添加生成按钮。</li>
-            <li>可在设置中选择本地 Codex 模型，并自定义全局提示词。</li>
+            <li>查找 Codex 时支持 PATH 与自定义路径，不再依赖固定的 Node 版本目录。</li>
+            <li>修复勾选范围、超时与取消，清理临时文件，不再截断变更文件列表。</li>
+            <li>修复模型列表解析，模型列表读取失败或格式变化时给出提示。</li>
+            <li>避免覆盖已填写的提交说明，并明确云端模型和部分提交的使用限制。</li>
         </ul>
     ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.vcs</depends>
+    <depends>Git4Idea</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable

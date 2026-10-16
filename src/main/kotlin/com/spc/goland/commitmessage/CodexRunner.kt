@@ -1,85 +1,168 @@
 package com.spc.goland.commitmessage
 
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.configurations.PathEnvironmentVariableUtil
+import com.intellij.openapi.util.SystemInfoRt
+import com.intellij.util.EnvironmentUtil
+import java.io.File
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
-import kotlin.io.path.exists
-import kotlin.io.path.isExecutable
 
 internal object CodexRunner {
-    private const val timeoutMinutes = 3L
+    private const val timeoutMillis = 180_000L
 
-    fun generate(projectPath: String?, model: String, prompt: String): String {
-        val executable = findCodex()
-        val output = Files.createTempFile("codex-commit-message-", ".txt")
-        val command = mutableListOf(
-            executable.toString(),
-            "exec",
-            "--ephemeral",
-            "--skip-git-repo-check",
-            "--sandbox",
-            "read-only",
-            "--color",
-            "never",
-            "-m",
-            model,
-            "-o",
-            output.toString(),
-            "-",
-        )
-        if (!projectPath.isNullOrBlank()) {
-            command.add(4, projectPath)
-            command.add(4, "--cd")
-        }
+    fun generate(
+        projectPath: String?,
+        model: String?,
+        prompt: String,
+        executablePath: String? = null,
+        checkCanceled: () -> Unit = {},
+    ): String = generate(
+        projectPath, model, prompt, executablePath, checkCanceled,
+        timeoutMillis, null, EnvironmentUtil.getEnvironmentMap(),
+    )
 
-        val process = ProcessBuilder(command)
-            .redirectErrorStream(true)
-            .also { builder -> prependPath(builder, executable.parent) }
-            .start()
-        process.outputStream.bufferedWriter().use { it.write(prompt) }
-        val finished = process.waitFor(timeoutMinutes, TimeUnit.MINUTES)
-        val log = process.inputStream.bufferedReader().readText()
-        if (!finished) {
-            process.destroyForcibly()
-            error("Codex 生成超时")
-        }
-        if (process.exitValue() != 0) {
-            error(log.lineSequence().lastOrNull { it.isNotBlank() } ?: "Codex 生成失败")
-        }
+    internal fun generate(
+        projectPath: String?,
+        model: String?,
+        prompt: String,
+        executablePath: String?,
+        checkCanceled: () -> Unit,
+        timeoutMillis: Long,
+        tempDirectory: Path?,
+        environment: Map<String, String>,
+    ): String {
+        checkCanceled()
+        val executable = findCodex(executablePath, environment)
+        val temporaryFiles = mutableListOf<Path>()
+        var process: Process? = null
+        var failure: Throwable? = null
+        try {
+            fun temporaryFile(suffix: String): Path {
+                val file = if (tempDirectory == null) {
+                    Files.createTempFile("codex-commit-message-", suffix)
+                } else {
+                    Files.createTempFile(tempDirectory, "codex-commit-message-", suffix)
+                }
+                temporaryFiles.add(file)
+                return file
+            }
 
-        val message = Files.readString(output)
-            .trim()
-            .removePrefix("```text")
-            .removePrefix("```")
-            .removeSuffix("```")
-            .trim()
-        if (message.isBlank()) {
-            error("Codex 没有返回提交说明")
+            val output = temporaryFile(".txt")
+            val input = temporaryFile(".prompt")
+            Files.writeString(input, prompt, StandardCharsets.UTF_8)
+            checkCanceled()
+            // File-backed stdin cannot block waiting for Codex to read a large prompt.
+            val runningProcess = commandLine(executable, projectPath, model, output, environment)
+                .toProcessBuilder()
+                .redirectInput(input.toFile())
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+            process = runningProcess
+
+            val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+            while (true) {
+                checkCanceled()
+                val remaining = deadline - System.nanoTime()
+                if (remaining <= 0) {
+                    error("Codex 生成超时")
+                }
+                if (runningProcess.waitFor(minOf(remaining, TimeUnit.MILLISECONDS.toNanos(100)), TimeUnit.NANOSECONDS)) {
+                    break
+                }
+            }
+            checkCanceled()
+            val exitCode = runningProcess.exitValue()
+            if (exitCode != 0) {
+                error("Codex 生成失败（退出码 $exitCode），请检查 Codex 认证和模型配置。")
+            }
+
+            val message = Files.readString(output, StandardCharsets.UTF_8)
+                .trim()
+                .removePrefix("```text")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+            if (message.isBlank()) {
+                error("Codex 没有返回提交说明")
+            }
+            return message
+        } catch (error: Throwable) {
+            failure = error
+            throw error
+        } finally {
+            var cleanupFailure: Throwable? = null
+            fun cleanUp(action: () -> Unit) {
+                try {
+                    action()
+                } catch (error: Throwable) {
+                    if (cleanupFailure == null) cleanupFailure = error else cleanupFailure.addSuppressed(error)
+                }
+            }
+            cleanUp { process?.takeIf { it.isAlive }?.let(::stopProcess) }
+            temporaryFiles.forEach { file -> cleanUp { Files.deleteIfExists(file) } }
+            cleanupFailure?.let { error ->
+                val originalFailure = failure
+                if (originalFailure == null) throw error else originalFailure.addSuppressed(error)
+            }
         }
-        return message
     }
 
-    private fun prependPath(builder: ProcessBuilder, binDir: Path?) {
-        if (binDir == null || !binDir.exists()) {
-            return
+    internal fun findCodex(executablePath: String?, environment: Map<String, String>): Path {
+        if (!executablePath.isNullOrBlank()) {
+            val executable = Path.of(executablePath.trim()).toAbsolutePath().normalize()
+            if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) {
+                error("配置的 Codex 路径不存在或不可执行，请检查 Codex 可执行文件路径。")
+            }
+            return executable
         }
-        val env = builder.environment()
-        val current = env["PATH"].orEmpty()
-        val prefix = binDir.toString()
-        if (current.split(':').none { it == prefix }) {
-            env["PATH"] = if (current.isBlank()) prefix else "$prefix:$current"
+
+        val path = environment.entries.firstOrNull { it.key.equals("PATH", ignoreCase = SystemInfoRt.isWindows) }?.value.orEmpty()
+        val executable = if (SystemInfoRt.isWindows) {
+            PathEnvironmentVariableUtil.findExecutableInWindowsPath("codex", path)?.let(Path::of)
+        } else {
+            PathEnvironmentVariableUtil.findInPath("codex", path) { it.isFile && it.canExecute() }?.toPath()
         }
+        return executable?.toAbsolutePath()?.normalize()
+            ?: error("没有在 PATH 中找到 Codex，请确认已安装，或在设置中指定 Codex 可执行文件路径。")
     }
 
-    private fun findCodex(): Path {
-        val home = Path.of(System.getProperty("user.home"))
-        val candidates = listOf(
-            home.resolve(".nvm/versions/node/v26.9.0/bin/codex"),
-            home.resolve(".local/bin/codex"),
-            Path.of("/opt/homebrew/bin/codex"),
-            Path.of("/usr/local/bin/codex"),
-        )
-        return candidates.firstOrNull { it.exists() && it.isExecutable() }
-            ?: error("没有找到本地 Codex，请确认 codex 已安装")
+    internal fun commandLine(
+        executable: Path,
+        projectPath: String?,
+        model: String?,
+        output: Path,
+        environment: Map<String, String>,
+        windows: Boolean = SystemInfoRt.isWindows,
+    ): GeneralCommandLine {
+        val command = GeneralCommandLine(executable.toString())
+            .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.NONE)
+            .withEnvironment(environment)
+            .withCharset(StandardCharsets.UTF_8)
+            .withParameters("exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never")
+        if (!projectPath.isNullOrBlank()) command.addParameters("--cd", projectPath)
+        if (!model.isNullOrBlank()) command.addParameters("-m", model)
+        command.addParameters("-o", output.toString(), "-")
+
+        val pathKey = command.environment.keys.firstOrNull { it.equals("PATH", ignoreCase = windows) } ?: "PATH"
+        val path = command.environment[pathKey].orEmpty()
+        val binDirectory = executable.parent.toString()
+        if (path.split(File.pathSeparatorChar).none { it.equals(binDirectory, ignoreCase = windows) }) {
+            command.environment[pathKey] = if (path.isBlank()) binDirectory else "$binDirectory${File.pathSeparator}$path"
+        }
+        if (windows && executable.fileName.toString().let { it.endsWith(".cmd", true) || it.endsWith(".bat", true) }) {
+            command.withWrappingCommand("cmd.exe", "/d", "/c")
+        }
+        return command
+    }
+
+    private fun stopProcess(process: Process) {
+        val descendants = process.descendants().use { it.toList() }
+        descendants.asReversed().forEach { it.destroyForcibly() }
+        process.destroyForcibly()
+        check(process.waitFor(5, TimeUnit.SECONDS)) { "无法停止 Codex 进程" }
     }
 }

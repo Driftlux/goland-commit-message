@@ -1,8 +1,6 @@
 package com.spc.goland.commitmessage
 
 internal object CommitPrompt {
-    private const val maxFiles = 80
-
     val defaultPrompt = """
         你是 Git 提交说明生成器。先查看列出的文件的实际 diff，不要只根据文件名猜测。未列出的文件不要写入说明。
 
@@ -26,9 +24,7 @@ internal object CommitPrompt {
     """.trimIndent()
 
     fun build(prompt: String, files: List<FileChange>): String {
-        val listed = files.take(maxFiles).joinToString("\n") { "- ${it.kind.label} ${it.path}" }
-        val remaining = files.size - maxFiles
-        val more = if (remaining > 0) "\n- ... $remaining more files" else ""
-        return prompt.trim() + "\n\n变更文件：\n" + listed + more
+        val listed = files.joinToString("\n") { "- ${it.kind.label} ${it.path}" }
+        return prompt + "\n\n变更文件：\n对以下列表中未版本化的新增文件读取文件内容，不读取未列出的文件。\n" + listed
     }
 }

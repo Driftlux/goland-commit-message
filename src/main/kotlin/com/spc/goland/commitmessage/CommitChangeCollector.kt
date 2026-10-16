@@ -4,28 +4,31 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.VcsDataKeys
 import com.intellij.openapi.vcs.changes.Change
-import com.intellij.openapi.vcs.changes.ChangeListManager
-import com.intellij.vcs.commit.CommitWorkflowUi
+import com.intellij.openapi.vcs.impl.PartialChangesUtil
 
 internal object CommitChangeCollector {
     fun collect(project: Project, dataContext: DataContext): List<FileChange> {
         val base = project.basePath
-        val changes = includedChanges(project, dataContext)
-        return changes.mapNotNull { it.toFileChange(base) }
+        val changes = includedChanges(dataContext).mapNotNull { it.toFileChange(base) }
+        val unversionedFiles = dataContext.getData(VcsDataKeys.COMMIT_WORKFLOW_UI)
+            ?.getIncludedUnversionedFiles().orEmpty()
+        return changes + unversionedFiles.map { FileChange(toRelativePath(it.path, base), FileKind.ADDED) }
     }
 
-    private fun includedChanges(project: Project, dataContext: DataContext): List<Change> {
-        val workflowChanges = dataContext.getData(VcsDataKeys.COMMIT_WORKFLOW_UI)?.getIncludedChanges().orEmpty()
-        if (workflowChanges.isNotEmpty()) {
-            return workflowChanges
+    fun hasPartialChanges(project: Project, dataContext: DataContext): Boolean {
+        return includedChanges(dataContext).any { change ->
+            PartialChangesUtil.isPartialChange(change) ||
+                PartialChangesUtil.getPartialTracker(project, change)?.hasPartialChangesToCommit() == true
+        }
+    }
+
+    private fun includedChanges(dataContext: DataContext): List<Change> {
+        val workflow = dataContext.getData(VcsDataKeys.COMMIT_WORKFLOW_UI)
+        if (workflow != null) {
+            return workflow.getIncludedChanges()
         }
 
-        val dataChanges = dataContext.getData(VcsDataKeys.CHANGES)?.toList().orEmpty()
-        if (dataChanges.isNotEmpty()) {
-            return dataChanges
-        }
-
-        return ChangeListManager.getInstance(project).defaultChangeList.changes.toList()
+        return dataContext.getData(VcsDataKeys.CHANGES)?.toList().orEmpty()
     }
 }
 
