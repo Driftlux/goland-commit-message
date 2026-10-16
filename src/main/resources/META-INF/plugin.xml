@@ -10,6 +10,12 @@
 文件列表不构成读取隔离。暂不支持部分行、部分变更或暂存区提交。<br>
 问题反馈：<a href="https://github.com/Driftlux/goland-commit-message/issues">GitHub Issues</a>。请勿附带私有代码、密钥或完整运行日志。]]></description>
     <change-notes><![CDATA[
+        <p>0.1.2</p>
+        <ul>
+            <li>新增持续集成：推送与 PR 自动运行测试、打包和插件结构校验，主干与每周定时任务校验与最新 IDE 的兼容性。</li>
+            <li>IDE 升级导致提交界面内部 API 不兼容时，给出明确提示，不再直接报错。</li>
+            <li>Codex 调用失败时按常见原因提示升级 CLI、重新登录或检查模型，不回显日志原文。</li>
+        </ul>
         <p>0.1.1</p>
         <ul>
             <li>查找 Codex 时支持 PATH 与自定义路径，不再依赖固定的 Node 版本目录。</li>
