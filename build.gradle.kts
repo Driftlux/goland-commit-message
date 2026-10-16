@@ -40,15 +40,6 @@ intellijPlatform {
         token = providers.gradleProperty("intellijPlatformPublishingToken")
     }
 
-    pluginVerification {
-        // 本机验证用已有的 IDE，避免下载完整 IDE 安装包；CI 不带参数时按默认推荐构建校验。
-        providers.gradleProperty("localIdePath").orNull?.let { localIdePath ->
-            ides {
-                local(localIdePath)
-            }
-        }
-    }
-
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "261"

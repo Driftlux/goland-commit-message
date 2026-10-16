@@ -44,8 +44,6 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 自动测试使用本地假 CLI 验证进程行为，不请求真实模型服务。已验证的 Codex CLI 版本为 0.162.1；更低版本可能不支持插件使用的 `--ephemeral`、`--sandbox`、`-o` 参数，此时会提示升级 Codex。
 
-仓库使用 GitHub Actions 做持续集成：推送到 `main` 和所有 PR 运行测试、打包与插件结构校验；`main` 分支和每周定时任务额外运行 `verifyPlugin`，校验与推荐 IDE 构建的二进制兼容性。
-
 ## 问题反馈
 
 请通过 [GitHub Issues](https://github.com/Driftlux/goland-commit-message/issues) 反馈问题。附上 IDE、插件和 Codex 版本及错误信息即可，不要上传私有代码、密钥或完整运行日志。
