@@ -55,6 +55,34 @@ class CodexRunnerTest {
     }
 
     @Test
+    fun mapsStderrKeywordsToHintsWithoutEchoingCliOutput() {
+        assertEquals(
+            "Codex 生成失败（退出码 2）。Codex CLI 不支持当前调用参数，可能是版本过旧，请升级 Codex 后重试。",
+            CodexRunner.failureMessage(2, "error: unexpected argument '--ephemeral' found\nUsage: codex exec [OPTIONS]"),
+        )
+        assertTrue(
+            CodexRunner.failureMessage(1, "Error: not logged in").contains("codex login"),
+        )
+        assertTrue(
+            CodexRunner.failureMessage(1, "{\"error\":{\"message\":\"unknown model: foo\"}}").contains("模型"),
+        )
+        assertEquals(
+            "Codex 生成失败（退出码 1）。请检查 Codex 认证和模型配置。",
+            CodexRunner.failureMessage(1, "opaque failure"),
+        )
+    }
+
+    @Test
+    fun reportsUsageErrorsFromRealCliStderr() {
+        Fixture("usage-error").use { fixture ->
+            val error = assertFailsWith<IllegalStateException> { fixture.generate() }
+            assertTrue(error.message.orEmpty().contains("版本过旧"))
+            assertFalse(error.message.orEmpty().contains("sensitive-test-log"))
+            fixture.assertTemporaryFilesDeleted()
+        }
+    }
+
+    @Test
     fun rejectsEmptyOutputAndCleansTemporaryFiles() {
         Fixture("empty").use { fixture ->
             val error = assertFailsWith<IllegalStateException> { fixture.generate() }
@@ -300,6 +328,11 @@ class CodexRunnerTest {
                     if (mode.equals("nonzero")) {
                         System.err.println("sensitive-test-log");
                         System.exit(7);
+                    }
+                    if (mode.equals("usage-error")) {
+                        System.err.println("error: unexpected argument '--ephemeral' found");
+                        System.err.println("sensitive-test-log");
+                        System.exit(2);
                     }
                     Files.writeString(directory.resolve("prompt.txt"), new String(System.in.readAllBytes(), StandardCharsets.UTF_8));
                     if (mode.equals("empty")) return;

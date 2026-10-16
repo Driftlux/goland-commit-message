@@ -5,6 +5,7 @@ import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.intellij.openapi.util.SystemInfoRt
 import com.intellij.util.EnvironmentUtil
 import java.io.File
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -12,6 +13,7 @@ import java.util.concurrent.TimeUnit
 
 internal object CodexRunner {
     private const val timeoutMillis = 180_000L
+    private const val maxErrorOutputBytes = 16 * 1024
 
     fun generate(
         projectPath: String?,
@@ -52,6 +54,7 @@ internal object CodexRunner {
 
             val output = temporaryFile(".txt")
             val input = temporaryFile(".prompt")
+            val errorOutput = temporaryFile(".err")
             Files.writeString(input, prompt, StandardCharsets.UTF_8)
             checkCanceled()
             // File-backed stdin cannot block waiting for Codex to read a large prompt.
@@ -59,7 +62,7 @@ internal object CodexRunner {
                 .toProcessBuilder()
                 .redirectInput(input.toFile())
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(errorOutput.toFile())
                 .start()
             process = runningProcess
 
@@ -77,7 +80,7 @@ internal object CodexRunner {
             checkCanceled()
             val exitCode = runningProcess.exitValue()
             if (exitCode != 0) {
-                error("Codex 生成失败（退出码 $exitCode），请检查 Codex 认证和模型配置。")
+                error(failureMessage(exitCode, readErrorOutput(errorOutput)))
             }
 
             val message = Files.readString(output, StandardCharsets.UTF_8)
@@ -128,6 +131,35 @@ internal object CodexRunner {
         }
         return executable?.toAbsolutePath()?.normalize()
             ?: error("没有在 PATH 中找到 Codex，请确认已安装，或在设置中指定 Codex 可执行文件路径。")
+    }
+
+    // 只按关键字归类常见失败原因，不回显 CLI 日志，避免把敏感内容带到提示框里。
+    internal fun failureMessage(exitCode: Int, errorOutput: String): String {
+        val text = errorOutput.lowercase()
+        val authenticationFailure = "not logged in" in text ||
+            "unauthorized" in text ||
+            "invalid api key" in text ||
+            "401 unauthorized" in text
+        val hint = when {
+            "unexpected argument" in text || "unrecognized argument" in text || "unknown argument" in text ->
+                "Codex CLI 不支持当前调用参数，可能是版本过旧，请升级 Codex 后重试。"
+            authenticationFailure ->
+                "Codex 未登录或认证已失效，请先在终端完成 codex login。"
+            "unknown model" in text || "model not found" in text ->
+                "Codex 无法使用所选模型，请检查模型名称，或留空以沿用 Codex 配置。"
+            exitCode == 2 ->
+                "Codex CLI 拒绝了调用参数，可能是版本过旧，请升级 Codex 后重试。"
+            else -> "请检查 Codex 认证和模型配置。"
+        }
+        return "Codex 生成失败（退出码 $exitCode）。$hint"
+    }
+
+    private fun readErrorOutput(path: Path): String = try {
+        Files.newInputStream(path).use { input ->
+            String(input.readNBytes(maxErrorOutputBytes), StandardCharsets.UTF_8)
+        }
+    } catch (_: IOException) {
+        ""
     }
 
     internal fun commandLine(

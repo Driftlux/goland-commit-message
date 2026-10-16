@@ -23,17 +23,24 @@ class GenerateCommitMessageAction : AnAction("生成提交说明", "通过本机
         val project = event.project ?: return
         val messageUi = event.getData(VcsDataKeys.COMMIT_MESSAGE_CONTROL) ?: return
         val messageDocument = event.getData(VcsDataKeys.COMMIT_MESSAGE_DOCUMENT) ?: return
-        if (event.getData(VcsDataKeys.COMMIT_WORKFLOW_UI) is GitStageCommitPanel) {
-            Messages.showInfoMessage(project, "暂不支持暂存区提交，请使用普通提交面板并选择文件的全部变更后生成提交说明。", "生成提交说明")
-            return
-        }
-        if (CommitChangeCollector.hasPartialChanges(project, event.dataContext)) {
-            Messages.showInfoMessage(project, "暂不支持部分行或部分变更提交，请选择文件的全部变更后生成提交说明。", "生成提交说明")
-            return
-        }
-        val files = CommitChangeCollector.collect(project, event.dataContext)
-        if (files.isEmpty()) {
-            Messages.showInfoMessage(project, "当前没有勾选可提交的变更。", "生成提交说明")
+        // 暂存区与部分变更检测依赖 IDE 内部 API，升级 IDE 后可能无法加载，此时直接给出提示而不是抛错。
+        val files = try {
+            if (event.getData(VcsDataKeys.COMMIT_WORKFLOW_UI) is GitStageCommitPanel) {
+                Messages.showInfoMessage(project, "暂不支持暂存区提交，请使用普通提交面板并选择文件的全部变更后生成提交说明。", "生成提交说明")
+                return
+            }
+            if (CommitChangeCollector.hasPartialChanges(project, event.dataContext)) {
+                Messages.showInfoMessage(project, "暂不支持部分行或部分变更提交，请选择文件的全部变更后生成提交说明。", "生成提交说明")
+                return
+            }
+            val selected = CommitChangeCollector.collect(project, event.dataContext)
+            if (selected.isEmpty()) {
+                Messages.showInfoMessage(project, "当前没有勾选可提交的变更。", "生成提交说明")
+                return
+            }
+            selected
+        } catch (_: LinkageError) {
+            Messages.showErrorDialog(project, "当前 IDE 版本的提交界面与插件不兼容，请升级插件后重试。", "生成提交说明")
             return
         }
 

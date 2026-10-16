@@ -6,6 +6,7 @@ plugins {
 }
 
 kotlin {
+    // 本机只有 GoLand 自带的 JBR 25 可用于编译，产物仍按 IDE 运行时要求输出 Java 21 字节码。
     jvmToolchain(25)
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_21)
@@ -37,6 +38,15 @@ intellijPlatform {
     instrumentCode = false
     publishing {
         token = providers.gradleProperty("intellijPlatformPublishingToken")
+    }
+
+    pluginVerification {
+        // 本机验证用已有的 IDE，避免下载完整 IDE 安装包；CI 不带参数时按默认推荐构建校验。
+        providers.gradleProperty("localIdePath").orNull?.let { localIdePath ->
+            ides {
+                local(localIdePath)
+            }
+        }
     }
 
     pluginConfiguration {

@@ -26,7 +26,7 @@ Copyright 2026 spc. Licensed under the Apache License, Version 2.0. See [LICENSE
 
 当前暂不支持部分行、部分变更或暂存区提交（Git Staging Area），检测到此类选择时会提示，不生成可能包含未选内容的说明。其他平台的运行兼容性仍需在对应系统验证；本仓库的构建验证使用 macOS 和 GoLand 2026.1.3。
 
-插件不保存、不回显 CLI 运行日志；CLI 非正常退出时显示退出码，请在自己的终端检查 Codex 的安装、认证和模型配置。生成结果仍需人工确认后提交。
+插件不保存、不回显 CLI 运行日志。CLI 非正常退出时，错误输出会写入临时文件（结束时删除），插件只读取开头部分用于匹配提示：按常见关键字（如参数不支持、未登录、模型无效）显示对应的排查建议，不展示原文。复杂问题时请在自己的终端检查 Codex 的安装、认证和模型配置。生成结果仍需人工确认后提交。
 
 ## 构建与安装
 
@@ -42,7 +42,9 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 打包产物位于 `build/distributions/`。在 GoLand 的 Settings、Plugins 中选择 Install Plugin from Disk，选择 ZIP 并按提示重启 IDE。
 
-自动测试使用本地假 CLI 验证进程行为，不请求真实模型服务。暂未添加 CI 配置。
+自动测试使用本地假 CLI 验证进程行为，不请求真实模型服务。已验证的 Codex CLI 版本为 0.162.1；更低版本可能不支持插件使用的 `--ephemeral`、`--sandbox`、`-o` 参数，此时会提示升级 Codex。
+
+仓库使用 GitHub Actions 做持续集成：推送到 `main` 和所有 PR 运行测试、打包与插件结构校验；`main` 分支和每周定时任务额外运行 `verifyPlugin`，校验与推荐 IDE 构建的二进制兼容性。
 
 ## 问题反馈
 
