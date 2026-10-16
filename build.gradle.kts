@@ -35,6 +35,9 @@ dependencies {
 intellijPlatform {
     buildSearchableOptions = false
     instrumentCode = false
+    publishing {
+        token = providers.gradleProperty("intellijPlatformPublishingToken")
+    }
 
     pluginConfiguration {
         ideaVersion {
